@@ -145,7 +145,7 @@ jobs:
       - run: flutter pub get
       - run: flutter build ios --release --no-codesign
       - run: |
-          IOS_BUILD_DIR="${{ github.workspace }}/build/ios/iphoneos"
+          IOS_BUILD_DIR="$GITHUB_WORKSPACE/build/ios/iphoneos"
           mkdir -p "$IOS_BUILD_DIR/Payload"
           mv "$IOS_BUILD_DIR/Runner.app" "$IOS_BUILD_DIR/Payload"
           cd "$IOS_BUILD_DIR"
