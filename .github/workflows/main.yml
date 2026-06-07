@@ -323,7 +323,7 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.Prepare_Release.outputs.tag_name }}
-          name: ${{ needs.Prepare_Release.outputs.tag_name }}
+          name: venera-2x ${{ needs.Prepare_Release.outputs.tag_name }}
           body_path: release_notes.md
           prerelease: ${{ needs.Prepare_Release.outputs.release_type == 'prerelease' }}
           make_latest: ${{ needs.Prepare_Release.outputs.release_type == 'release' }}

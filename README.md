@@ -1,11 +1,11 @@
-# venera
+# venera-2x
 [![flutter](https://img.shields.io/badge/flutter-3.41.4-blue)](https://flutter.dev/)
 [![License](https://img.shields.io/github/license/venera-app/venera)](https://github.com/venera-app/venera/blob/master/LICENSE)
 [![Download](https://img.shields.io/github/v/release/venera-app/venera)](https://github.com/venera-app/venera/releases)
 [![AUR Version](https://img.shields.io/aur/version/venera-bin)](https://aur.archlinux.org/packages/venera-bin)
 
 ## 项目说明
-Venera 是一个支持本地漫画和网络漫画阅读的跨平台漫画阅读器。
+venera-2x 是一个支持本地漫画和网络漫画阅读的跨平台漫画阅读器。
 
 本仓库基于 [venera-app/venera](https://github.com/venera-app/venera) fork 而来。
 
