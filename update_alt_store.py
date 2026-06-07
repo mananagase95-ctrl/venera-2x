@@ -53,7 +53,7 @@ def update_json_file_release(json_file, latest_release):
     if isinstance(latest_release, list) and latest_release:
         latest_release = latest_release[0]
     else:
-        print("Error getting latest release")
+        print("No stable release found; skipping AltStore source update.")
         return
 
     try:
