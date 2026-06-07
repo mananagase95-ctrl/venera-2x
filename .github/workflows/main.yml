@@ -95,6 +95,10 @@ jobs:
           CERTIFICATE: ${{ secrets.CERTIFICATE }}
           CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
         run: |
+          if [ -z "$CERTIFICATE" ] || [ -z "$CERTIFICATE_PASSWORD" ]; then
+            echo "macOS signing certificate secrets are not configured; skipping certificate import."
+            exit 0
+          fi
           echo "$CERTIFICATE" | base64 --decode > signing_certificate.p12
           security import signing_certificate.p12 -k ~/Library/Keychains/login.keychain -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
 
@@ -141,15 +145,16 @@ jobs:
       - run: flutter pub get
       - run: flutter build ios --release --no-codesign
       - run: |
-          mkdir -p /Users/runner/work/venera/venera/build/ios/iphoneos/Payload
-          mv /Users/runner/work/venera/venera/build/ios/iphoneos/Runner.app /Users/runner/work/venera/venera/build/ios/iphoneos/Payload
-          cd /Users/runner/work/venera/venera/build/ios/iphoneos/
-          zip -r venera-ios.ipa Payload
+          IOS_BUILD_DIR="${{ github.workspace }}/build/ios/iphoneos"
+          mkdir -p "$IOS_BUILD_DIR/Payload"
+          mv "$IOS_BUILD_DIR/Runner.app" "$IOS_BUILD_DIR/Payload"
+          cd "$IOS_BUILD_DIR"
+          zip -r venera-2x-ios.ipa Payload
       - name: Add version to filename
         run: |
           APP_VERSION=$(grep "version:" pubspec.yaml | cut -d':' -f2 | tr -d ' ')
           mkdir -p result
-          mv build/ios/iphoneos/venera-ios.ipa result/venera-ios-$APP_VERSION.ipa
+          mv build/ios/iphoneos/venera-2x-ios.ipa result/venera-2x-ios-$APP_VERSION.ipa
       - uses: actions/upload-artifact@v4
         with:
           name: ios_build
@@ -166,17 +171,36 @@ jobs:
           channel: "stable"
           flutter-version-file: pubspec.yaml
           architecture: x64
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'oracle'
+          java-version: '17'
       - name: Decode and install certificate
         env:
           STORE_FILE: ${{ secrets.ANDROID_KEYSTORE }}
           PROPERTY_FILE: ${{ secrets.ANDROID_KEY_PROPERTIES }}
         run: |
+          if [ -z "$STORE_FILE" ] || [ -z "$PROPERTY_FILE" ]; then
+            echo "Android signing secrets are not configured; generating a temporary CI keystore."
+            keytool -genkeypair -v \
+              -keystore android/ci-release-key.jks \
+              -storepass venera_ci \
+              -keypass venera_ci \
+              -alias venera_ci \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=venera-2x CI, OU=CI, O=venera-2x, L=CI, ST=CI, C=CN"
+            cat > android/key.properties <<'EOF'
+          storeFile=../ci-release-key.jks
+          storePassword=venera_ci
+          keyAlias=venera_ci
+          keyPassword=venera_ci
+          EOF
+            exit 0
+          fi
             echo "$STORE_FILE" | base64 --decode > android/keystore.jks
             echo "$PROPERTY_FILE" > android/key.properties
-      - uses: actions/setup-java@v4
-        with:
-          distribution: 'oracle'
-          java-version: '17'
       - name: Check rust-toolchain.toml
         run: rustup show
       - run: flutter pub get
