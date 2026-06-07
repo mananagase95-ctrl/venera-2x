@@ -16,6 +16,8 @@ import 'package:venera/utils/translations.dart';
 import 'io.dart';
 
 class DataSync with ChangeNotifier {
+  static const _syncDir = '/venera';
+
   DataSync._() {
     if (isEnabled) {
       downloadData();
@@ -96,6 +98,14 @@ class DataSync with ChangeNotifier {
     return List.from(config);
   }
 
+  Future<void> _ensureSyncDir(Client client) {
+    return client.mkdir(_syncDir);
+  }
+
+  String _syncPath(String name) {
+    return '$_syncDir/$name';
+  }
+
   Future<Res<bool>> uploadData() async {
     if (isDownloading) return const Res(true);
     if (_haveWaitingTask) return const Res(true);
@@ -131,25 +141,27 @@ class DataSync with ChangeNotifier {
         appdata.settings['dataVersion']++;
         await appdata.saveData(false);
         var data = await exportAppData(
-            appdata.settings['disableSyncFields'].toString().isNotEmpty
+          appdata.settings['disableSyncFields'].toString().isNotEmpty,
         );
-        var time =
-            (DateTime.now().millisecondsSinceEpoch ~/ 86400000).toString();
+        var time = (DateTime.now().millisecondsSinceEpoch ~/ 86400000)
+            .toString();
         var filename = time;
         filename += '-';
         filename += appdata.settings['dataVersion'].toString();
         filename += '.venera';
-        var files = await client.readDir('/');
+        await _ensureSyncDir(client);
+        var files = await client.readDir(_syncDir);
         files = files.where((e) => e.name!.endsWith('.venera')).toList();
         var old = files.firstWhereOrNull((e) => e.name!.startsWith("$time-"));
         if (old != null) {
-          await client.remove(old.name!);
+          await client.remove(_syncPath(old.name!));
+          files.remove(old);
         }
         if (files.length >= 10) {
           files.sort((a, b) => a.name!.compareTo(b.name!));
-          await client.remove(files.first.name!);
+          await client.remove(_syncPath(files.first.name!));
         }
-        await client.write(filename, await data.readAsBytes());
+        await client.write(_syncPath(filename), await data.readAsBytes());
         data.deleteIgnoreError();
         Log.info("Upload Data", "Data uploaded successfully");
         return const Res(true);
@@ -195,14 +207,18 @@ class DataSync with ChangeNotifier {
       );
 
       try {
-        var files = await client.readDir('/');
+        await _ensureSyncDir(client);
+        var files = await client.readDir(_syncDir);
         files.sort((a, b) => b.name!.compareTo(a.name!));
         var file = files.firstWhereOrNull((e) => e.name!.endsWith('.venera'));
         if (file == null) {
           throw 'No data file found';
         }
-        var version =
-            file.name!.split('-').elementAtOrNull(1)?.split('.').first;
+        var version = file.name!
+            .split('-')
+            .elementAtOrNull(1)
+            ?.split('.')
+            .first;
         if (version != null && int.tryParse(version) != null) {
           var currentVersion = appdata.settings['dataVersion'];
           if (currentVersion != null && int.parse(version) <= currentVersion) {
@@ -212,7 +228,7 @@ class DataSync with ChangeNotifier {
         }
         Log.info("Data Sync", "Downloading data from WebDAV server");
         var localFile = File(FilePath.join(App.cachePath, file.name!));
-        await client.read2File(file.name!, localFile.path);
+        await client.read2File(_syncPath(file.name!), localFile.path);
         await importAppData(localFile, true);
         await localFile.delete();
         Log.info("Data Sync", "Data downloaded successfully");

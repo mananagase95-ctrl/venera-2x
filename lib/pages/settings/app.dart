@@ -382,8 +382,6 @@ class _WebdavSettingState extends State<_WebdavSetting> {
   void onAutoSyncChanged(bool value) {
     setState(() {
       autoSync = value;
-      appdata.implicitData['webdavAutoSync'] = value;
-      appdata.writeImplicitData();
     });
   }
 
@@ -441,7 +439,8 @@ class _WebdavSettingState extends State<_WebdavSetting> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              "When sync data, skip certain setting fields, which means these won't be uploaded / override.".tl,
+                              "When sync data, skip certain setting fields, which means these won't be uploaded / override."
+                                  .tl,
                             ),
                             const SizedBox(height: 12),
                             Row(
@@ -456,7 +455,9 @@ class _WebdavSettingState extends State<_WebdavSetting> {
                                   child: IconButton(
                                     icon: const Icon(Icons.open_in_new),
                                     onPressed: () {
-                                      launchUrlString("https://github.com/venera-app/venera/blob/b08f11f6ac49bd07d34b4fcde233ed07e86efbc9/lib/foundation/appdata.dart#L138");
+                                      launchUrlString(
+                                        "https://github.com/venera-app/venera/blob/b08f11f6ac49bd07d34b4fcde233ed07e86efbc9/lib/foundation/appdata.dart#L138",
+                                      );
                                     },
                                   ),
                                 ),
@@ -477,10 +478,7 @@ class _WebdavSettingState extends State<_WebdavSetting> {
               leading: Icon(Icons.sync),
               title: Text("Auto Sync Data".tl),
               contentPadding: EdgeInsets.zero,
-              trailing: Switch(
-                value: autoSync,
-                onChanged: onAutoSyncChanged,
-              ),
+              trailing: Switch(value: autoSync, onChanged: onAutoSyncChanged),
             ),
             const SizedBox(height: 12),
             RadioGroup<bool>(
@@ -493,13 +491,9 @@ class _WebdavSettingState extends State<_WebdavSetting> {
               child: Row(
                 children: [
                   Text("Operation".tl),
-                  Radio<bool>(
-                    value: true,
-                  ),
+                  Radio<bool>(value: true),
                   Text("Upload".tl),
-                  Radio<bool>(
-                    value: false,
-                  ),
+                  Radio<bool>(value: false),
                   Text("Download".tl),
                 ],
               ),
@@ -520,8 +514,9 @@ class _WebdavSettingState extends State<_WebdavSetting> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                                "Once the operation is successful, app will automatically sync data with the server."
-                                    .tl),
+                              "Once the operation is successful, app will automatically sync data with the server."
+                                  .tl,
+                            ),
                           ),
                         ],
                       ),
@@ -534,6 +529,7 @@ class _WebdavSettingState extends State<_WebdavSetting> {
                 isLoading: isTesting,
                 onPressed: () async {
                   var oldConfig = appdata.settings['webdav'];
+                  var oldDisableSync = appdata.settings['disableSyncFields'];
                   var oldAutoSync = appdata.implicitData['webdavAutoSync'];
 
                   if (url.trim().isEmpty &&
@@ -550,11 +546,11 @@ class _WebdavSettingState extends State<_WebdavSetting> {
 
                   appdata.settings['webdav'] = [url, user, pass];
                   appdata.settings['disableSyncFields'] = disableSync;
-                  appdata.implicitData['webdavAutoSync'] = autoSync;
+                  appdata.implicitData['webdavAutoSync'] = false;
                   appdata.writeImplicitData();
 
                   if (!autoSync) {
-                    appdata.saveData();
+                    await appdata.saveData(false);
                     context.showMessage(message: "Saved".tl);
                     App.rootPop();
                     return;
@@ -571,20 +567,23 @@ class _WebdavSettingState extends State<_WebdavSetting> {
                       isTesting = false;
                     });
                     appdata.settings['webdav'] = oldConfig;
+                    appdata.settings['disableSyncFields'] = oldDisableSync;
                     appdata.implicitData['webdavAutoSync'] = oldAutoSync;
                     appdata.writeImplicitData();
-                    appdata.saveData();
+                    await appdata.saveData(false);
                     context.showMessage(message: testResult.errorMessage!);
                     context.showMessage(message: "Saved Failed".tl);
                   } else {
-                    appdata.saveData();
+                    appdata.implicitData['webdavAutoSync'] = autoSync;
+                    appdata.writeImplicitData();
+                    await appdata.saveData(false);
                     context.showMessage(message: "Saved".tl);
                     App.rootPop();
                   }
                 },
                 child: Text("Continue".tl),
               ),
-            )
+            ),
           ],
         ).paddingHorizontal(16),
       ),
