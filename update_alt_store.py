@@ -1,9 +1,14 @@
 import json
-import plistlib
 import re
 import requests
 import os
 from datetime import datetime
+
+REPO_URL = "mananagase95-ctrl/venera-2x"
+APP_NAME = "venera-2x"
+APP_ID = "com.github.wgh136.venera"
+SOURCE_URL = f"https://github.com/{REPO_URL}"
+ICON_URL = f"https://raw.githubusercontent.com/{REPO_URL}/master/assets/app_icon.png"
 
 def prepare_description(text):
     text = re.sub('<[^<]+?>', '', text) # Remove HTML tags
@@ -19,18 +24,25 @@ def fetch_latest_release(repo_url):
     headers = {
         "Accept": "application/vnd.github+json",
     }
+    token = os.environ.get("GITHUB_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
     try:
-        response = requests.get(api_url, headers=headers)
+        response = requests.get(api_url, headers=headers, timeout=30)
         response.raise_for_status()
-        release = response.json()
-        return release
+        releases = response.json()
+        return [
+            release
+            for release in releases
+            if not release.get("draft") and not release.get("prerelease")
+        ]
     except requests.RequestException as e:
         print(f"Error fetching releases: {e}")
         raise
 
 def get_file_size(url):
     try:
-        response = requests.head(url)
+        response = requests.head(url, timeout=30)
         response.raise_for_status()
         return int(response.headers.get('Content-Length', 0))
     except requests.RequestException as e:
@@ -52,7 +64,21 @@ def update_json_file_release(json_file, latest_release):
         data = {"apps": []}
         raise
 
+    data.update({
+        "name": APP_NAME,
+        "website": SOURCE_URL,
+        "subtitle": f"{APP_NAME} AltStore Source.",
+        "description": "venera-2x 是一个支持本地漫画和网络漫画阅读的跨平台漫画阅读器。",
+        "iconURL": ICON_URL,
+    })
+
     app = data["apps"][0]
+    app.update({
+        "name": APP_NAME,
+        "bundleIdentifier": APP_ID,
+        "subtitle": "支持本地漫画和网络漫画阅读的漫画阅读器",
+        "iconURL": ICON_URL,
+    })
 
     full_version = latest_release["tag_name"]
     tag = latest_release["tag_name"]
@@ -74,8 +100,7 @@ def update_json_file_release(json_file, latest_release):
     download_url = None
     size = None
     for asset in assets:
-        # venera-ios-1.4.5+145.ipa
-        if asset["name"] == f"venera-ios-{version}+{version.replace('.', '')}.ipa":
+        if re.fullmatch(rf"{APP_NAME}-ios-{re.escape(version)}\+\d+\.ipa", asset["name"]):
             download_url = asset["browser_download_url"]
             size = asset["size"]
             break
@@ -112,14 +137,14 @@ def update_json_file_release(json_file, latest_release):
     news_identifier = f"release-{full_version}"
     date_string = date_obj.strftime("%d/%m/%y")
     news_entry = {
-        "appID": "com.github.wgh136.venera",
-        "caption": f"Update of Venera just got released!",
+        "appID": APP_ID,
+        "caption": f"{APP_NAME} 新版本已发布。",
         "date": latest_release["published_at"],
         "identifier": news_identifier,
         "notify": True,
         "tintColor": "#0784FC",
-        "title": f"{full_version} - Venera  {date_string}",
-        "url": f"https://github.com/venera-app/venera/releases/tag/{tag}"
+        "title": f"{full_version} - {APP_NAME} {date_string}",
+        "url": f"{SOURCE_URL}/releases/tag/{tag}"
     }
 
     news_entry_exists = any(item["identifier"] == news_identifier for item in data["news"])
@@ -128,18 +153,15 @@ def update_json_file_release(json_file, latest_release):
 
     try:
         with open(json_file, "w") as file:
-            json.dump(data, file, indent=2)
+            json.dump(data, file, indent=2, ensure_ascii=False)
         print("JSON file updated successfully.")
     except IOError as e:
         print(f"Error writing to JSON file: {e}")
         raise
 
 def main():
-    repo_url = "venera-app/venera"
-    is_nightly = "NIGHTLY_LINK" in os.environ
-
     try:
-        fetched_data_latest = fetch_latest_release(repo_url)
+        fetched_data_latest = fetch_latest_release(REPO_URL)
         json_file = "alt_store.json"
         update_json_file_release(json_file, fetched_data_latest)
     except Exception as e:
