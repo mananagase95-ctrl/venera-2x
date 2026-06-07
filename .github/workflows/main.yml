@@ -9,6 +9,9 @@ on:
 permissions:
   contents: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   Prepare_Release:
     runs-on: ubuntu-22.04
@@ -18,7 +21,7 @@ jobs:
       version: ${{ steps.prepare.outputs.version }}
       tag_name: ${{ steps.prepare.outputs.tag_name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - id: prepare
@@ -81,7 +84,7 @@ jobs:
     needs: Prepare_Release
     if: needs.Prepare_Release.outputs.should_build == 'true'
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
       - uses: subosito/flutter-action@v2
         with:
           channel: "stable"
@@ -135,7 +138,7 @@ jobs:
     needs: Prepare_Release
     if: needs.Prepare_Release.outputs.should_build == 'true'
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
       - uses: subosito/flutter-action@v2
         with:
           channel: "stable"
@@ -164,7 +167,7 @@ jobs:
     needs: Prepare_Release
     if: needs.Prepare_Release.outputs.should_build == 'true'
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
       - run: rm -rf /opt/hostedtoolcache
       - uses: subosito/flutter-action@v2
         with:
@@ -214,7 +217,7 @@ jobs:
     needs: Prepare_Release
     if: needs.Prepare_Release.outputs.should_build == 'true'
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
       - name: install dependencies
         run: | 
           choco install yq -y
@@ -239,7 +242,7 @@ jobs:
     needs: Prepare_Release
     if: needs.Prepare_Release.outputs.should_build == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
@@ -269,7 +272,7 @@ jobs:
     needs: Prepare_Release
     if: needs.Prepare_Release.outputs.should_build == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: subosito/flutter-action@v2
         with:
           channel: 'master'
@@ -293,7 +296,7 @@ jobs:
     needs: [Prepare_Release, Build_MacOS, Build_IOS, Build_Android, Build_Windows, Build_Linux, Build_Linux_ARM64]
     if: needs.Prepare_Release.outputs.should_build == 'true' && needs.Prepare_Release.outputs.release_type != 'none'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/download-artifact@v4
         with:
           name: macos_build
