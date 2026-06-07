@@ -2,12 +2,84 @@ name: Build ALL
 run-name: Build ALL
 on:
   workflow_dispatch: {}
-  release:
-    types: [published]
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
 
 jobs:
+  Prepare_Release:
+    runs-on: ubuntu-22.04
+    outputs:
+      should_build: ${{ steps.prepare.outputs.should_build }}
+      release_type: ${{ steps.prepare.outputs.release_type }}
+      version: ${{ steps.prepare.outputs.version }}
+      tag_name: ${{ steps.prepare.outputs.tag_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: prepare
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="$(grep -m1 -E '^## +v?[0-9]' CHANGELOG.md | sed -E 's/^## +v?([^ ]+).*/\1/')"
+          if [ -z "$version" ]; then
+            echo "No version found in CHANGELOG.md" >&2
+            exit 1
+          fi
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            echo "release_type=none" >> "$GITHUB_OUTPUT"
+            echo "version=$version" >> "$GITHUB_OUTPUT"
+            echo "tag_name=manual-${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          base="${{ github.event.before }}"
+          if [ -z "$base" ] || [[ "$base" =~ ^0+$ ]] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            base="$(git rev-parse HEAD^)"
+          fi
+
+          changed_files="$(git diff --name-only "$base" HEAD)"
+          changelog_version_changed=false
+          code_changed=false
+
+          if echo "$changed_files" | grep -q '^CHANGELOG.md$'; then
+            old_version="$(git show "$base:CHANGELOG.md" 2>/dev/null | grep -m1 -E '^## +v?[0-9]' | sed -E 's/^## +v?([^ ]+).*/\1/' || true)"
+            if [ "$old_version" != "$version" ]; then
+              changelog_version_changed=true
+            fi
+          fi
+
+          if echo "$changed_files" | grep -E -q '^(lib|assets|android|ios|macos|windows|linux|debian|patch|fastlane|test)/|^(pubspec.yaml|pubspec.lock|rust-toolchain.toml|analysis_options.yaml)$'; then
+            code_changed=true
+          fi
+
+          if [ "$changelog_version_changed" = "true" ]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            echo "release_type=release" >> "$GITHUB_OUTPUT"
+            echo "tag_name=v$version" >> "$GITHUB_OUTPUT"
+          elif [ "$code_changed" = "true" ]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            echo "release_type=prerelease" >> "$GITHUB_OUTPUT"
+            echo "tag_name=v$version-pre.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+            echo "release_type=none" >> "$GITHUB_OUTPUT"
+            echo "tag_name=none" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
   Build_MacOS:
     runs-on: macos-15
+    needs: Prepare_Release
+    if: needs.Prepare_Release.outputs.should_build == 'true'
     steps:
       - uses: actions/checkout@v3
       - uses: subosito/flutter-action@v2
@@ -56,6 +128,8 @@ jobs:
           path: result/
   Build_IOS:
     runs-on: macos-15
+    needs: Prepare_Release
+    if: needs.Prepare_Release.outputs.should_build == 'true'
     steps:
       - uses: actions/checkout@v3
       - uses: subosito/flutter-action@v2
@@ -82,6 +156,8 @@ jobs:
           path: result/
   Build_Android:
     runs-on: ubuntu-22.04
+    needs: Prepare_Release
+    if: needs.Prepare_Release.outputs.should_build == 'true'
     steps:
       - uses: actions/checkout@v3
       - run: rm -rf /opt/hostedtoolcache
@@ -111,6 +187,8 @@ jobs:
           path: build/app/outputs/apk/release
   Build_Windows:
     runs-on: windows-latest
+    needs: Prepare_Release
+    if: needs.Prepare_Release.outputs.should_build == 'true'
     steps:
       - uses: actions/checkout@v3
       - name: install dependencies
@@ -134,6 +212,8 @@ jobs:
           path: build/windows/Venera-*
   Build_Linux:
     runs-on: ubuntu-22.04
+    needs: Prepare_Release
+    if: needs.Prepare_Release.outputs.should_build == 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
@@ -162,6 +242,8 @@ jobs:
           path: build/linux/arch/
   Build_Linux_ARM64:
     runs-on: ubuntu-22.04-arm
+    needs: Prepare_Release
+    if: needs.Prepare_Release.outputs.should_build == 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
@@ -184,9 +266,10 @@ jobs:
 
   Release:
     runs-on: ubuntu-22.04
-    needs: [Build_MacOS, Build_IOS, Build_Android, Build_Windows, Build_Linux, Build_Linux_ARM64]
-    if: github.event_name == 'release'  # 仅在 push 事件时执行
+    needs: [Prepare_Release, Build_MacOS, Build_IOS, Build_Android, Build_Windows, Build_Linux, Build_Linux_ARM64]
+    if: needs.Prepare_Release.outputs.should_build == 'true' && needs.Prepare_Release.outputs.release_type != 'none'
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: macos_build
@@ -215,9 +298,35 @@ jobs:
         with:
           name: deb_arm64_build
           path: outputs
+      - name: Generate release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ needs.Prepare_Release.outputs.release_type }}" = "release" ]; then
+            awk '
+              /^## / {
+                if (seen) exit
+                seen=1
+                next
+              }
+              seen { print }
+            ' CHANGELOG.md > release_notes.md
+          else
+            {
+              echo "自动预发布构建"
+              echo
+              echo "- 版本：v${{ needs.Prepare_Release.outputs.version }}"
+              echo "- 提交：${{ github.sha }}"
+              echo "- 说明：更新日志版本号未变化，但检测到代码修改，因此生成 pre-release 包。"
+            } > release_notes.md
+          fi
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ needs.Prepare_Release.outputs.tag_name }}
+          name: ${{ needs.Prepare_Release.outputs.tag_name }}
+          body_path: release_notes.md
+          prerelease: ${{ needs.Prepare_Release.outputs.release_type == 'prerelease' }}
+          make_latest: ${{ needs.Prepare_Release.outputs.release_type == 'release' }}
           files: |
             outputs/*.ipa
             outputs/*.dmg
@@ -228,4 +337,4 @@ jobs:
             outputs/*.zst
             outputs/*.AppImage
         env:
-          GITHUB_TOKEN: ${{ secrets.ACTION_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.ACTION_GITHUB_TOKEN || github.token }}
