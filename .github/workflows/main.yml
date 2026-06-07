@@ -129,7 +129,7 @@ jobs:
 
       # Step 4: Attach and upload artifacts (optional)
       - name: Upload DMG
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: macos_build
           path: result/
@@ -158,7 +158,7 @@ jobs:
           APP_VERSION=$(grep "version:" pubspec.yaml | cut -d':' -f2 | tr -d ' ')
           mkdir -p result
           mv build/ios/iphoneos/venera-2x-ios.ipa result/venera-2x-ios-$APP_VERSION.ipa
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: ios_build
           path: result/
@@ -208,7 +208,7 @@ jobs:
         run: rustup show
       - run: flutter pub get
       - run: flutter build apk --release
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: apks
           path: build/app/outputs/apk/release
@@ -233,7 +233,7 @@ jobs:
         run: |
           flutter pub get
           python windows/build.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: windows_build
           path: build/windows/Venera-*
@@ -259,11 +259,11 @@ jobs:
           sudo rm -rf build/linux/arch/pkg
           sudo rm -rf build/linux/arch/src
           sudo rm -rf build/linux/arch/PKGBUILD
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: deb_build
           path: build/linux/x64/release/debian
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: arch_build
           path: build/linux/arch/
@@ -286,7 +286,7 @@ jobs:
         run: |
           dart run patch/font.dart
       - run: python3 debian/build.py arm64
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: deb_arm64_build
           path: build/linux/x64/release/debian # This is a bug related to flutter_to_debian, but it's not a big deal.
@@ -297,31 +297,31 @@ jobs:
     if: needs.Prepare_Release.outputs.should_build == 'true' && needs.Prepare_Release.outputs.release_type != 'none'
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: macos_build
           path: outputs
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: ios_build
           path: outputs
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: apks
           path: outputs
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: windows_build
           path: outputs
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: deb_build
           path: outputs
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: arch_build
           path: outputs
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: deb_arm64_build
           path: outputs
